@@ -91,11 +91,11 @@ class FPNDecoder(Model):
             self,
             encoder_channels,
             pyramid_channels=256,
-            segmentation_channels=128,
+            segmentation_channels=32,
             final_upsampling=2,
             final_channels=1,
             dropout=0.2,
-            merge_policy='add'
+            merge_policy='cat'
     ):
         super().__init__()
 
@@ -121,8 +121,12 @@ class FPNDecoder(Model):
 
         if self.merge_policy == 'cat':
             segmentation_channels *= 5
-        
+
         self.final_conv = nn.Conv2d(segmentation_channels, final_channels, kernel_size=1, padding=0)
+        self.logit = nn.Sequential(
+            ConvBnRelu2d(final_channels, 32, kernel_size=3, padding=1),
+            nn.Conv2d(32, final_channels, kernel_size=1, padding=0),
+        )
 
         self.initialize()
 
@@ -151,4 +155,6 @@ class FPNDecoder(Model):
 
         if self.final_upsampling is not None and self.final_upsampling > 1:
             x = F.interpolate(x, scale_factor=self.final_upsampling, mode='bilinear', align_corners=True)
+        self.logit(x)
+
         return x

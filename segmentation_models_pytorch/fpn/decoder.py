@@ -92,13 +92,13 @@ class FPNDecoder(Model):
             encoder_channels,
             pyramid_channels=256,
             segmentation_channels=128,
-            final_upsampling=4,
+            final_upsampling=2,
             final_channels=1,
             dropout=0.2,
             merge_policy='add'
     ):
         super().__init__()
-        
+
         if merge_policy not in ['add', 'cat']:
             raise ValueError("`merge_policy` must be one of: ['add', 'cat'], got {}".format(merge_policy))
         self.merge_policy = merge_policy
@@ -109,38 +109,42 @@ class FPNDecoder(Model):
         self.p4 = FPNBlock(pyramid_channels, encoder_channels[1])
         self.p3 = FPNBlock(pyramid_channels, encoder_channels[2])
         self.p2 = FPNBlock(pyramid_channels, encoder_channels[3])
+        self.p1 = FPNBlock(pyramid_channels, encoder_channels[4])
 
-        self.s5 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=3)
-        self.s4 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=2)
-        self.s3 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=1)
-        self.s2 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=0)
+        self.s5 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=4)
+        self.s4 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=3)
+        self.s3 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=2)
+        self.s2 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=1)
+        self.s1 = SegmentationBlock(pyramid_channels, segmentation_channels, n_upsamples=0)
 
         self.dropout = nn.Dropout2d(p=dropout, inplace=True)
 
         if self.merge_policy == 'cat':
-            segmentation_channels *= 4
+            segmentation_channels *= 5
         
         self.final_conv = nn.Conv2d(segmentation_channels, final_channels, kernel_size=1, padding=0)
 
         self.initialize()
 
     def forward(self, x):
-        c5, c4, c3, c2, _ = x
+        c5, c4, c3, c2, c1 = x
 
         p5 = self.conv1(c5)
         p4 = self.p4([p5, c4])
         p3 = self.p3([p4, c3])
         p2 = self.p2([p3, c2])
+        p1 = self.p2([p2, c1])
 
         s5 = self.s5(p5)
         s4 = self.s4(p4)
         s3 = self.s3(p3)
         s2 = self.s2(p2)
+        s1 = self.s1(p1)
 
         if self.merge_policy == 'add':
-            x = s5 + s4 + s3 + s2
+            x = s5 + s4 + s3 + s2 + s1
         elif self.merge_policy == 'cat':
-            x = torch.cat([s5, s4, s3, s2], dim=1)
+            x = torch.cat([s5, s4, s3, s2, s1], dim=1)
 
         x = self.dropout(x)
         x = self.final_conv(x)

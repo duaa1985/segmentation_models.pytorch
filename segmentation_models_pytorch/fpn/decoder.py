@@ -5,6 +5,33 @@ import torch.nn.functional as F
 from ..base.model import Model
 
 
+sigmoid = torch.nn.Sigmoid()
+class Swish(torch.autograd.Function):
+    @staticmethod
+    def forward(ctx, i):
+        result = i * sigmoid(i)
+        ctx.save_for_backward(i)
+        return result
+
+    @staticmethod
+    def backward(ctx, grad_output):
+        i = ctx.saved_variables[0]
+        sigmoid_i = sigmoid(i)
+        return grad_output * (sigmoid_i * (1 + i * (1 - sigmoid_i)))
+
+swish = Swish.apply
+
+class Swish_module(nn.Module):
+    def forward(self, x):
+        return swish(x)
+
+swish_layer = Swish_module()
+
+def relu_fn(x):
+    """ Swish activation function """
+    return swish_layer(x)
+
+
 class Conv3x3GNReLU(nn.Module):
     def __init__(self, in_channels, out_channels, upsample=False):
 
@@ -14,7 +41,7 @@ class Conv3x3GNReLU(nn.Module):
             nn.Conv2d(in_channels, out_channels, (3, 3),
                               stride=1, padding=1, bias=False),
             nn.GroupNorm(32, out_channels),
-            nn.ReLU(inplace=True),
+            Swish_module(),
         )
 
     def forward(self, x):

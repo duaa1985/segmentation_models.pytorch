@@ -133,7 +133,7 @@ class FPNDecoder(Model):
         p4 = self.p4([p5, c4])
         p3 = self.p3([p4, c3])
         p2 = self.p2([p3, c2])
-        p1 = self.p2([p2, c1])
+        p1 = self.p1([p2, c1])
 
         s5 = self.s5(p5)
         s4 = self.s4(p4)
